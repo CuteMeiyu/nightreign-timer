@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nightreign Timer</title>
+    <style>
+        :root {
+            --background-color: rgba(0, 0, 0, 0.7);
+            --primary-color: #3498db;
+            --text-color: white;
+            --text-shadow: 0 2px 10px rgba(52, 152, 219, 0.5);
+        }
+
+        html,
+        body {
+            box-sizing: border-box;
+            min-height: 100vh;
+        }
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: inherit;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            align-items: center;
+            color: var(--text-color);
+            background: var(--background-color);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .display {
+            text-align: center;
+        }
+
+        .phase-name {
+            font-size: min(24vw, 30vh);
+            font-weight: bold;
+            padding-bottom: min(8vw, 10vh);
+            color: var(--primary-color);
+            text-shadow: var(--text-shadow);
+        }
+
+        .timer {
+            font-size: min(28vw, 35vh);
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            border-radius: 10px;
+            letter-spacing: 0.05em;
+        }
+
+        .connection-status {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+
+        .indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: #e74c3c;
+        }
+
+        .indicator.connected {
+            background-color: #2ecc71;
+            box-shadow: 0 0 6px #2ecc71;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="connection-status">
+            <div class="indicator" id="wsIndicator"></div>
+        </div>
+        <div class="display">
+            <div class="phase-name" id="phaseDisplay">Ready</div>
+            <div class="timer" id="timerDisplay">--:--</div>
+        </div>
+    </div>
+
+    <script>
+        class Timer {
+            phase_names = [
+                "Ready",
+                "Day 1-1",
+                "Rain 1-1",
+                "Day 1-2",
+                "Rain 1-2",
+                "Night 1",
+                "Day 2-1",
+                "Rain 2-1",
+                "Day 2-2",
+                "Rain 2-2",
+                "Night 2",
+            ];
+
+            phase_durations = [0, 270, 180, 210, 180, 0, 270, 180, 210, 180, 0];
+
+            constructor() {
+                this.reset();
+            }
+
+            reset() {
+                this.phase = 0;
+                this.phase_ends = null;
+                this.do_auto_split = null;
+            }
+
+            split() {
+                this.next();
+                if (this.phase >= this.phase_durations.length) {
+                    this.reset();
+                    return;
+                }
+
+                this.do_auto_split = this.phase_durations.map(d => d > 0);
+
+                const now = performance.now() / 1000;
+                this.phase_ends = [];
+
+                let total = 0;
+                for (let i = this.phase; i < this.phase_durations.length; i++) {
+                    total += this.phase_durations[i];
+                    this.phase_ends[i] = now + total;
+                }
+            }
+
+            next() {
+                this.phase++;
+                if (this.phase >= this.phase_durations.length) {
+                    this.phase = this.phase_durations.length - 1;
+                }
+            }
+
+            prev() {
+                this.phase--;
+                if (this.phase < 0) {
+                    this.phase = 0;
+                }
+                if (this.do_auto_split) {
+                    this.do_auto_split[this.phase] = false;
+                }
+            }
+
+            auto_split() {
+                if (this.phase_ends === null || this.do_auto_split === null) return;
+
+                while (this.phase < this.phase_ends.length &&
+                    this.do_auto_split[this.phase] &&
+                    this.phase_ends[this.phase] < performance.now() / 1000) {
+                    this.next();
+                }
+            }
+
+            get_current_phase_name() {
+                return this.phase_names[this.phase];
+            }
+
+            get_remaining_time() {
+                if (this.phase_ends === null ||
+                    this.phase < 0 ||
+                    this.phase >= this.phase_ends.length) {
+                    return null;
+                }
+
+                const remaining = this.phase_ends[this.phase] - (performance.now() / 1000);
+                return isNaN(remaining) ? null : remaining < 0 ? -remaining : remaining;
+            }
+        }
+
+        const timer = new Timer();
+        let ws;
+        let reconnectAttempts = 0;
+
+        function updateDisplay() {
+            timer.auto_split();
+
+            const phaseName = timer.get_current_phase_name();
+            const remaining = timer.get_remaining_time();
+
+            document.getElementById("phaseDisplay").textContent = phaseName;
+
+            if (remaining === null) {
+                document.getElementById("timerDisplay").textContent = "--:--";
+            } else {
+                const mins = Math.floor(remaining / 60);
+                const secs = Math.floor(remaining % 60);
+                document.getElementById("timerDisplay").textContent =
+                    `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+
+                if (remaining < 10) {
+                    document.getElementById("timerDisplay").classList.add('low-time');
+                } else {
+                    document.getElementById("timerDisplay").classList.remove('low-time');
+                }
+            }
+        }
+
+        function connectWebSocket() {
+            try {
+                ws = new WebSocket('ws://localhost:22708');
+
+                ws.onopen = function () {
+                    console.log('Connected to WebSocket server');
+                    document.getElementById('wsIndicator').classList.add('connected');
+                    reconnectAttempts = 0;
+                };
+
+                ws.onmessage = function (event) {
+                    try {
+                        const message = JSON.parse(event.data);
+                        switch (message.action) {
+                            case 'split':
+                                timer.split();
+                                break;
+                            case 'next':
+                                timer.next();
+                                break;
+                            case 'prev':
+                                timer.prev();
+                                break;
+                            case 'reset':
+                                timer.reset();
+                                break;
+                        }
+                        updateDisplay();
+                    } catch (error) {
+                        console.error('Error processing WebSocket message:', error);
+                    }
+                };
+
+                ws.onclose = function (event) {
+                    console.log('WebSocket connection closed');
+                    document.getElementById('wsIndicator').classList.remove('connected');
+                    const delay = 1000;
+                    console.log(`Reconnecting in ${delay / 1000} seconds...`);
+                    setTimeout(connectWebSocket, delay);
+                    reconnectAttempts++;
+                };
+
+                ws.onerror = function (error) {
+                    console.error('WebSocket error:', error);
+                };
+
+            } catch (error) {
+                console.error('WebSocket connection error:', error);
+                setTimeout(connectWebSocket, 5000);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            connectWebSocket();
+        });
+
+        updateDisplay();
+        setInterval(updateDisplay, 200);
+    </script>
+</body>
+
+</html>
