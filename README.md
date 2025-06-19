@@ -15,6 +15,7 @@
 
 ## AutoTimer
 
-- Auto retiming on DAY 2 (still need to start timer on DAY 1 manually)
-- Default support game language ch_sim with borderless 2560x1440
+- Based on OCR ([EasyOCR](https://github.com/JaidedAI/EasyOCR))
+- Detect "DAY I"/"DAY II" on center of screen
+- Additionally detect great enemy tip on day 2, as a backup when map opened (Chinese only)
 - Custom config on splits/ocr.py
