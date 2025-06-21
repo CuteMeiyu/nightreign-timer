@@ -7,7 +7,8 @@ _server: websockets.Server | None = None
 
 
 def send_action(action: str):
-    assert _server is not None
+    if _server is None:
+        return
     websockets.broadcast(_server.connections, json.dumps({"action": action}))
 
 
