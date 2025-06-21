@@ -218,37 +218,82 @@
         .notification.show {
             opacity: 1;
         }
+
+        #context-menu {
+            display: none;
+            position: absolute;
+            background: rgba(30, 30, 40, 0.95);
+            border-radius: 6px;
+            box-shadow: 0 0 15px rgba(52, 152, 219, 0.5);
+            border: 1px solid rgba(52, 152, 219, 0.3);
+            z-index: 1000;
+            min-width: 160px;
+            overflow: hidden;
+        }
+
+        .context-menu-item {
+            padding: 12px 20px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .context-menu-item:hover {
+            background: rgba(52, 152, 219, 0.3);
+        }
+
+        .context-menu-divider {
+            height: 1px;
+            background: rgba(52, 152, 219, 0.3);
+            margin: 4px 0;
+        }
     </style>
 </head>
 
 <body>
     <div class="container">
         <div class="connection-status">
-            <div class="indicator" id="wsIndicator"></div>
+            <div class="indicator" id="ws-indicator"></div>
         </div>
         <div class="display">
-            <div class="phase-name" id="phaseDisplay">Ready</div>
-            <div class="timer" id="timerDisplay">--:--</div>
+            <div class="phase-name" id="phase-display">Ready</div>
+            <div class="timer" id="timer-display">--:--</div>
         </div>
+    </div>
+
+    <div id="context-menu">
+        <div class="context-menu-item" id="undo-btn">Undo Split</div>
+        <div class="context-menu-divider"></div>
+        <div class="context-menu-item" id="next-btn">Next</div>
+        <div class="context-menu-divider"></div>
+        <div class="context-menu-item" id="reset-btn">Reset</div>
+        <div class="context-menu-divider"></div>
+        <div class="context-menu-item" id="prev-btn">Previous</div>
+        <div class="context-menu-divider"></div>
+        <div class="context-menu-item" id="config-menu-item">Config</div>
     </div>
 
     <div id="config-overlay">
         <div id="config-popup">
             <div class="config-title">Config</div>
             <div class="config-group">
-                <label for="serverAddress">Host</label>
-                <input type="text" id="serverAddress" class="config-input" placeholder="localhost">
+                <label for="server-address">Host</label>
+                <input type="text" id="server-address" class="config-input" placeholder="localhost">
             </div>
             <div class="config-group">
-                <label for="serverPort">Port</label>
-                <input type="text" id="serverPort" class="config-input" placeholder="22708">
+                <label for="server-port">Port</label>
+                <input type="text" id="server-port" class="config-input" placeholder="22708">
             </div>
             <div class="config-group">
-                <div id="currentConfig">Current：ws://localhost:22708</div>
+                <div id="current-config">Current：ws://localhost:22708</div>
             </div>
             <div class="btn-group">
-                <button id="cancelBtn" class="btn btn-cancel">Cancel</button>
-                <button id="saveBtn" class="btn btn-primary">Save</button>
+                <button id="cancel-btn" class="btn btn-cancel">Cancel</button>
+                <button id="save-btn" class="btn btn-primary">Save</button>
             </div>
         </div>
     </div>
@@ -275,6 +320,7 @@
 
             constructor() {
                 this.reset();
+                this.stateHistory = [];
             }
 
             reset() {
@@ -283,7 +329,28 @@
                 this.do_auto_split = null;
             }
 
+            saveState() {
+                this.stateHistory.push({
+                    phase: this.phase,
+                    phase_ends: this.phase_ends ? [...this.phase_ends] : null,
+                    do_auto_split: this.do_auto_split ? [...this.do_auto_split] : null
+                });
+                if (this.stateHistory.length > 1) {
+                    this.stateHistory.shift();
+                }
+            }
+
+            undo() {
+                if (this.stateHistory.length === 0) return;
+                const prevState = this.stateHistory.pop();
+                this.phase = prevState.phase;
+                this.phase_ends = prevState.phase_ends;
+                this.do_auto_split = prevState.do_auto_split;
+            }
+
             split() {
+                this.saveState();
+
                 this.next();
                 if (this.phase >= this.phase_durations.length) {
                     this.reset();
@@ -354,12 +421,21 @@
         };
 
         const configOverlay = document.getElementById('config-overlay');
-        const serverAddressInput = document.getElementById('serverAddress');
-        const serverPortInput = document.getElementById('serverPort');
-        const saveBtn = document.getElementById('saveBtn');
-        const cancelBtn = document.getElementById('cancelBtn');
-        const currentConfigText = document.getElementById('currentConfig');
+        const serverAddressInput = document.getElementById('server-address');
+        const serverPortInput = document.getElementById('server-port');
+        const saveBtn = document.getElementById('save-btn');
+        const cancelBtn = document.getElementById('cancel-btn');
+        const currentConfigText = document.getElementById('current-config');
         const notification = document.getElementById('notification');
+        const contextMenu = document.getElementById('context-menu');
+
+        const undoBtn = document.getElementById('undo-btn');
+        const nextBtn = document.getElementById('next-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const prevBtn = document.getElementById('prev-btn');
+        const configMenuItem = document.getElementById('config-menu-item');
+
+        let ignoreSplitUntil = 0;
 
         function loadConfig() {
             const savedConfig = localStorage.getItem('timerServerConfig');
@@ -396,7 +472,7 @@
             connectWebSocket();
 
             showNotification("Saved", 1500);
-            configOverlay.style.display = 'none';
+            hideConfigPopup();
         }
 
         function updateCurrentConfigText() {
@@ -421,7 +497,7 @@
 
                 ws.onopen = function () {
                     console.log(`Connected to WebSocket server at ${url}`);
-                    document.getElementById('wsIndicator').classList.add('connected');
+                    document.getElementById('ws-indicator').classList.add('connected');
                     reconnectAttempts = 0;
                 };
 
@@ -431,6 +507,9 @@
                         switch (message.action) {
                             case 'split':
                                 timer.split();
+                                break;
+                            case 'undo':
+                                timer.undo();
                                 break;
                             case 'next':
                                 timer.next();
@@ -450,7 +529,7 @@
 
                 ws.onclose = function (event) {
                     console.log(`WebSocket connection closed: ${event.code} - ${event.reason}`);
-                    document.getElementById('wsIndicator').classList.remove('connected');
+                    document.getElementById('ws-indicator').classList.remove('connected');
                     const delay = 5000;
                     console.log(`Reconnecting in ${delay / 1000} seconds...`);
                     setTimeout(connectWebSocket, delay);
@@ -471,6 +550,12 @@
             serverAddressInput.value = config.address;
             serverPortInput.value = config.port;
             configOverlay.style.display = 'flex';
+            ignoreSplitUntil = Infinity;
+        }
+
+        function hideConfigPopup() {
+            configOverlay.style.display = 'none';
+            ignoreSplitUntil = performance.now() + 100;
         }
 
         function updateDisplay() {
@@ -479,67 +564,109 @@
             const phaseName = timer.get_current_phase_name();
             const remaining = timer.get_remaining_time();
 
-            document.getElementById("phaseDisplay").textContent = phaseName;
+            document.getElementById("phase-display").textContent = phaseName;
 
             if (remaining === null) {
-                document.getElementById("timerDisplay").textContent = "--:--";
-                document.getElementById("timerDisplay").classList.remove('low-time');
+                document.getElementById("timer-display").textContent = "--:--";
+                document.getElementById("timer-display").classList.remove('low-time');
             } else {
                 const abs_remaining = Math.abs(remaining);
                 const mins = Math.floor(abs_remaining / 60);
                 const secs = Math.floor(abs_remaining % 60);
-                document.getElementById("timerDisplay").textContent =
+                document.getElementById("timer-display").textContent =
                     `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 
                 if (remaining < 30 && remaining >= 0) {
-                    document.getElementById("timerDisplay").classList.add('low-time');
+                    document.getElementById("timer-display").classList.add('low-time');
                 } else {
-                    document.getElementById("timerDisplay").classList.remove('low-time');
+                    document.getElementById("timer-display").classList.remove('low-time');
                 }
             }
         }
 
-        saveBtn.addEventListener('click', saveConfig);
-        cancelBtn.addEventListener('click', () => {
-            configOverlay.style.display = 'none';
+        function showContextMenu(x, y) {
+            contextMenu.style.display = 'block';
+            contextMenu.style.left = `${x}px`;
+            contextMenu.style.top = `${y}px`;
+            ignoreSplitUntil = Infinity;
+        }
+
+        function hideContextMenu() {
+            contextMenu.style.display = 'none';
+            ignoreSplitUntil = performance.now() + 100;
+        }
+
+        document.addEventListener('click', (e) => {
+            if (ignoreSplitUntil > performance.now()) return;
+            timer.split();
+        })
+
+        contextMenu.addEventListener('click', (e) => {
+            if (e.target.classList.contains('context-menu-item')) {
+                const action = e.target.id;
+                switch (action) {
+                    case 'undo-btn':
+                        timer.undo();
+                        break;
+                    case 'next-btn':
+                        timer.next();
+                        break;
+                    case 'reset-btn':
+                        timer.reset();
+                        break;
+                    case 'prev-btn':
+                        timer.prev();
+                        break;
+                    case 'config-menu-item':
+                        showConfigPopup();
+                        break;
+                }
+                updateDisplay();
+                hideContextMenu();
+            }
         });
 
-        // configOverlay.addEventListener('click', (e) => {
-        //     if (e.target === configOverlay) {
-        //         configOverlay.style.display = 'none';
-        //     }
-        // });
+        saveBtn.addEventListener('click', saveConfig);
+        cancelBtn.addEventListener('click', () => {
+            hideConfigPopup();
+        });
 
         document.addEventListener('contextmenu', (e) => {
             e.preventDefault();
-            showConfigPopup();
+            showContextMenu(e.clientX, e.clientY);
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!contextMenu.contains(e.target)) {
+                hideContextMenu();
+            }
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === "Escape") {
+                hideContextMenu();
+            }
         });
 
         let longPressTimer;
         const longPressDuration = 500;
-        const bodyElement = document.body;
 
-        bodyElement.addEventListener('touchstart', (e) => {
+        document.addEventListener('touchstart', (e) => {
             e.preventDefault();
 
             longPressTimer = setTimeout(() => {
-                showConfigPopup();
+                const touch = e.touches[0];
+                showContextMenu(touch.clientX, touch.clientY);
             }, longPressDuration);
         });
 
-        bodyElement.addEventListener('touchend', () => {
+        document.addEventListener('touchend', () => {
             clearTimeout(longPressTimer);
         });
 
-        bodyElement.addEventListener('touchmove', () => {
+        document.addEventListener('touchmove', () => {
             clearTimeout(longPressTimer);
         });
-
-        bodyElement.addEventListener('click', (e) => {
-            if (!e.target.closest("#config-overlay")) {
-                timer.split();
-            }
-        })
 
         document.addEventListener('DOMContentLoaded', function () {
             loadConfig();

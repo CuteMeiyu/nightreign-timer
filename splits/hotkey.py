@@ -6,7 +6,8 @@ HOTKEYS = {
     "1": "split",
     "2": "next",
     "3": "reset",
-    "8": "prev",
+    "4": "undo",
+    "5": "prev",
 }
 
 

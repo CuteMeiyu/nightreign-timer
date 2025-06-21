@@ -11,7 +11,8 @@
 - 1: Go to next phase with retiming (start)
 - 2: Go to next phase
 - 3: Reset
-- 8: Back to previous phase
+- 4: Undo last split
+- 5: Back to previous phase
 - Custom config in splits/hotkey.py
 
 ## AutoTimer
@@ -20,3 +21,9 @@
 - Detect "DAY I"/"DAY II" on center of screen
 - Additionally detect great enemy tip on day 2, as a backup when map opened (Chinese only)
 - Custom config in splits/ocr.py
+- Can be disabled by commenting out `splits.ocr.start()` in the main.py
+
+## Remote
+
+- Open index.html
+- Right click to config host ip address
