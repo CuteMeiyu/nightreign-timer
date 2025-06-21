@@ -78,6 +78,146 @@
             background-color: #2ecc71;
             box-shadow: 0 0 6px #2ecc71;
         }
+
+        #config-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 999;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #config-popup {
+            background: rgba(30, 30, 40, 0.95);
+            border-radius: 10px;
+            padding: 25px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 0 20px rgba(52, 152, 219, 0.5);
+            border: 1px solid rgba(52, 152, 219, 0.3);
+        }
+
+        .config-title {
+            color: var(--primary-color);
+            font-size: 24px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+
+        .config-group {
+            margin-bottom: 15px;
+        }
+
+        .config-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #ccc;
+        }
+
+        .config-input {
+            width: 100%;
+            padding: 12px;
+            background: rgba(20, 20, 30, 0.8);
+            border: 1px solid rgba(52, 152, 219, 0.3);
+            border-radius: 5px;
+            color: white;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        .config-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 8px rgba(52, 152, 219, 0.5);
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 25px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 12px 0;
+            border-radius: 5px;
+            background: rgba(30, 30, 40, 0.8);
+            border: 1px solid rgba(52, 152, 219, 0.3);
+            color: white;
+            font-weight: bold;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #3498db, #2980b9);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn:active {
+            transform: translateY(1px);
+        }
+
+        .btn-cancel {
+            background: rgba(70, 70, 80, 0.8);
+        }
+
+        .btn-cancel:hover {
+            background: rgba(90, 90, 100, 0.8);
+        }
+
+        .low-time {
+            color: #e74c3c !important;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.7;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+
+        .notification {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            background: rgba(30, 30, 40, 0.95);
+            border-radius: 6px;
+            color: white;
+            border: 1px solid var(--primary-color);
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            max-width: 80%;
+            text-align: center;
+        }
+
+        .notification.show {
+            opacity: 1;
+        }
     </style>
 </head>
 
@@ -91,6 +231,29 @@
             <div class="timer" id="timerDisplay">--:--</div>
         </div>
     </div>
+
+    <div id="config-overlay">
+        <div id="config-popup">
+            <div class="config-title">Config</div>
+            <div class="config-group">
+                <label for="serverAddress">Host</label>
+                <input type="text" id="serverAddress" class="config-input" placeholder="localhost">
+            </div>
+            <div class="config-group">
+                <label for="serverPort">Port</label>
+                <input type="text" id="serverPort" class="config-input" placeholder="22708">
+            </div>
+            <div class="config-group">
+                <div id="currentConfig">Current：ws://localhost:22708</div>
+            </div>
+            <div class="btn-group">
+                <button id="cancelBtn" class="btn btn-cancel">Cancel</button>
+                <button id="saveBtn" class="btn btn-primary">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="notification" id="notification"></div>
 
     <script>
         class Timer {
@@ -178,44 +341,86 @@
                 }
 
                 const remaining = this.phase_ends[this.phase] - (performance.now() / 1000);
-                return isNaN(remaining) ? null : remaining < 0 ? -remaining : remaining;
+                return isNaN(remaining) ? null : remaining;
             }
         }
 
         const timer = new Timer();
         let ws;
         let reconnectAttempts = 0;
+        let config = {
+            address: 'localhost',
+            port: '22708'
+        };
 
-        function updateDisplay() {
-            timer.auto_split();
+        const configOverlay = document.getElementById('config-overlay');
+        const serverAddressInput = document.getElementById('serverAddress');
+        const serverPortInput = document.getElementById('serverPort');
+        const saveBtn = document.getElementById('saveBtn');
+        const cancelBtn = document.getElementById('cancelBtn');
+        const currentConfigText = document.getElementById('currentConfig');
+        const notification = document.getElementById('notification');
 
-            const phaseName = timer.get_current_phase_name();
-            const remaining = timer.get_remaining_time();
-
-            document.getElementById("phaseDisplay").textContent = phaseName;
-
-            if (remaining === null) {
-                document.getElementById("timerDisplay").textContent = "--:--";
-            } else {
-                const mins = Math.floor(remaining / 60);
-                const secs = Math.floor(remaining % 60);
-                document.getElementById("timerDisplay").textContent =
-                    `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-
-                if (remaining < 10) {
-                    document.getElementById("timerDisplay").classList.add('low-time');
-                } else {
-                    document.getElementById("timerDisplay").classList.remove('low-time');
+        function loadConfig() {
+            const savedConfig = localStorage.getItem('timerServerConfig');
+            if (savedConfig) {
+                try {
+                    config = JSON.parse(savedConfig);
+                    if (typeof config.address !== 'string' || typeof config.port !== 'string') {
+                        throw new Error("Invalid configuration format");
+                    }
+                } catch (e) {
+                    console.error("Failed to load config, using defaults:", e);
+                    localStorage.removeItem('timerServerConfig');
                 }
             }
+            updateCurrentConfigText();
+            return config;
+        }
+
+        function saveConfig() {
+            const newAddress = serverAddressInput.value.trim() || "localhost";
+            const newPort = serverPortInput.value.trim() || 22708;
+
+            config = {
+                address: newAddress,
+                port: newPort
+            };
+
+            localStorage.setItem('timerServerConfig', JSON.stringify(config));
+            updateCurrentConfigText();
+
+            if (ws) {
+                ws.close();
+            }
+            connectWebSocket();
+
+            showNotification("Saved", 1500);
+            configOverlay.style.display = 'none';
+        }
+
+        function updateCurrentConfigText() {
+            currentConfigText.textContent = `Current: ws://${config.address}:${config.port}`;
+        }
+
+        function showNotification(message, duration = 2000) {
+            notification.textContent = message;
+            notification.classList.add('show');
+
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, duration);
         }
 
         function connectWebSocket() {
+            loadConfig();
+            const url = `ws://${config.address}:${config.port}`;
+
             try {
-                ws = new WebSocket('ws://localhost:22708');
+                ws = new WebSocket(url);
 
                 ws.onopen = function () {
-                    console.log('Connected to WebSocket server');
+                    console.log(`Connected to WebSocket server at ${url}`);
                     document.getElementById('wsIndicator').classList.add('connected');
                     reconnectAttempts = 0;
                 };
@@ -244,9 +449,9 @@
                 };
 
                 ws.onclose = function (event) {
-                    console.log('WebSocket connection closed');
+                    console.log(`WebSocket connection closed: ${event.code} - ${event.reason}`);
                     document.getElementById('wsIndicator').classList.remove('connected');
-                    const delay = 1000;
+                    const delay = 5000;
                     console.log(`Reconnecting in ${delay / 1000} seconds...`);
                     setTimeout(connectWebSocket, delay);
                     reconnectAttempts++;
@@ -262,7 +467,82 @@
             }
         }
 
+        function showConfigPopup() {
+            serverAddressInput.value = config.address;
+            serverPortInput.value = config.port;
+            configOverlay.style.display = 'flex';
+        }
+
+        function updateDisplay() {
+            timer.auto_split();
+
+            const phaseName = timer.get_current_phase_name();
+            const remaining = timer.get_remaining_time();
+
+            document.getElementById("phaseDisplay").textContent = phaseName;
+
+            if (remaining === null) {
+                document.getElementById("timerDisplay").textContent = "--:--";
+                document.getElementById("timerDisplay").classList.remove('low-time');
+            } else {
+                const abs_remaining = Math.abs(remaining);
+                const mins = Math.floor(abs_remaining / 60);
+                const secs = Math.floor(abs_remaining % 60);
+                document.getElementById("timerDisplay").textContent =
+                    `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+
+                if (remaining < 30 && remaining >= 0) {
+                    document.getElementById("timerDisplay").classList.add('low-time');
+                } else {
+                    document.getElementById("timerDisplay").classList.remove('low-time');
+                }
+            }
+        }
+
+        saveBtn.addEventListener('click', saveConfig);
+        cancelBtn.addEventListener('click', () => {
+            configOverlay.style.display = 'none';
+        });
+
+        // configOverlay.addEventListener('click', (e) => {
+        //     if (e.target === configOverlay) {
+        //         configOverlay.style.display = 'none';
+        //     }
+        // });
+
+        document.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            showConfigPopup();
+        });
+
+        let longPressTimer;
+        const longPressDuration = 500;
+        const bodyElement = document.body;
+
+        bodyElement.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+
+            longPressTimer = setTimeout(() => {
+                showConfigPopup();
+            }, longPressDuration);
+        });
+
+        bodyElement.addEventListener('touchend', () => {
+            clearTimeout(longPressTimer);
+        });
+
+        bodyElement.addEventListener('touchmove', () => {
+            clearTimeout(longPressTimer);
+        });
+
+        bodyElement.addEventListener('click', (e) => {
+            if (!e.target.closest("#config-overlay")) {
+                timer.split();
+            }
+        })
+
         document.addEventListener('DOMContentLoaded', function () {
+            loadConfig();
             connectWebSocket();
         });
 
