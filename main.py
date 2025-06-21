@@ -7,9 +7,9 @@ import splits.ocr
 
 async def main():
     await asyncio.gather(
+        server.start(),
         splits.hotkey.start(),
         splits.ocr.start(),
-        server.start(),
     )
 
 

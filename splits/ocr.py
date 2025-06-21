@@ -1,14 +1,6 @@
 import asyncio
 
-import easyocr
-import mss
-import numpy as np
-from PIL import Image
-from thefuzz import fuzz
-
 import server
-
-DEBUG = False
 
 TARGETS = [
     {
@@ -20,19 +12,25 @@ TARGETS = [
         "texts": ["已得到恐怖强敌的所在地信息"],
     },
 ]
+DEBUG = False  # Save temp images
 MONITOR = 1  # Monitor index, starting with 1. https://python-mss.readthedocs.io/api.html#mss.tools.mss.base.MSSBase.monitors
 INTERVAL = 0.5  # Interval between twice detection
 COOLDOWN = 30  # Cooldown after split
 THRESHOLD = 50  # Text similarity threshold
 
-backend = easyocr.Reader(["ch_sim", "en"])
-
-
-def ocr(img):
-    return "".join(res[1] for res in backend.readtext(img))  # type: ignore
-
 
 async def start():
+    import easyocr
+    import mss
+    import numpy as np
+    from PIL import Image
+    from thefuzz import fuzz
+
+    reader = easyocr.Reader(["ch_sim", "en"])
+
+    def ocr(img):
+        return " ".join(res[1] for res in reader.readtext(img))  # type: ignore
+
     with mss.mss() as sct:
         screenshot = sct.grab(sct.monitors[MONITOR])
         if DEBUG:
@@ -45,6 +43,7 @@ async def start():
                 int(screenshot.height * target["rect"][3]),
             )
         interval = INTERVAL / len(TARGETS)
+        print("ocr ready")
         while True:
             for i, target in enumerate(TARGETS):
                 img = np.array(sct.grab(target["bbox"]))
@@ -52,7 +51,7 @@ async def start():
                     Image.fromarray(img).save(f"temp-{i}.png")
                 recognized = ocr(img)
                 if any(fuzz.ratio(recognized, text) >= THRESHOLD for text in target["texts"]):
-                    print(recognized, "auto split")
+                    print(recognized)
                     server.send_action("split")
                     await asyncio.sleep(COOLDOWN)
                 await asyncio.sleep(interval)
