@@ -320,32 +320,31 @@
 
             constructor() {
                 this.reset();
-                this.stateHistory = [];
             }
 
             reset() {
+                this.saveState();
                 this.phase = 0;
                 this.phase_ends = null;
                 this.do_auto_split = null;
             }
 
             saveState() {
-                this.stateHistory.push({
-                    phase: this.phase,
-                    phase_ends: this.phase_ends ? [...this.phase_ends] : null,
-                    do_auto_split: this.do_auto_split ? [...this.do_auto_split] : null
-                });
-                if (this.stateHistory.length > 10) {
-                    this.stateHistory.shift();
-                }
+                this.p_phase = this.phase;
+                this.p_phase_ends = this.phase_ends ? [...this.phase_ends] : null;
+                this.p_do_auto_split = this.do_auto_split ? [...this.do_auto_split] : null;
             }
 
             undo() {
-                if (this.stateHistory.length === 0) return;
-                const prevState = this.stateHistory.pop();
-                this.phase = prevState.phase;
-                this.phase_ends = prevState.phase_ends;
-                this.do_auto_split = prevState.do_auto_split;
+                let temp = this.phase;
+                this.phase = this.p_phase;
+                this.p_phase = temp;
+                temp = this.phase_ends;
+                this.phase_ends = this.p_phase_ends;
+                this.p_phase_ends = temp;
+                temp = this.do_auto_split;
+                this.do_auto_split = this.p_do_auto_split;
+                this.p_do_auto_split = temp;
             }
 
             split() {
