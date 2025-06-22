@@ -14,7 +14,7 @@ TARGETS = [
         "threshold": 70,
     },
 ]
-DEBUG = False  # Save temp images
+DEBUG = False  # Save temp images and print ocr text
 MONITOR = 1  # Monitor index, starting with 1. https://python-mss.readthedocs.io/api.html#mss.tools.mss.base.MSSBase.monitors
 INTERVAL = 0.5  # Interval between twice detection
 COOLDOWN = 30  # Cooldown after split
@@ -48,11 +48,12 @@ async def start():
         while True:
             for i, target in enumerate(TARGETS):
                 img = np.array(sct.grab(target["bbox"]))
+                recognized = ocr(img)
                 if DEBUG:
                     Image.fromarray(img).save(f"temp-{i}.png")
-                recognized = ocr(img)
-                if any(fuzz.ratio(recognized, text) >= target["threshold"] for text in target["texts"]):
                     print(recognized)
+                if any((ratio := fuzz.ratio(recognized, text)) >= target["threshold"] for text in target["texts"]):
+                    print(recognized, ratio)
                     server.send_action("split")
                     await asyncio.sleep(COOLDOWN)
                 await asyncio.sleep(interval)
