@@ -8,10 +8,10 @@
 
 ## Hotkey
 
-- 1: Go to next phase with retiming (start)
+- 1: Split (go to next phase with retiming)
 - 2: Go to next phase
 - 3: Reset
-- 4: Undo last split
+- 4: Undo split
 - 5: Back to previous phase
 - Custom config in splits/hotkey.py
 

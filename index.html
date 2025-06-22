@@ -335,7 +335,7 @@
                     phase_ends: this.phase_ends ? [...this.phase_ends] : null,
                     do_auto_split: this.do_auto_split ? [...this.do_auto_split] : null
                 });
-                if (this.stateHistory.length > 1) {
+                if (this.stateHistory.length > 10) {
                     this.stateHistory.shift();
                 }
             }
