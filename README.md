@@ -23,7 +23,7 @@
 - Custom config in splits/ocr.py
 - Can be disabled by commenting out `splits.ocr.start()` in the main.py
 
-## Remote
+## Remote Display
 
 - Open index.html
 - Right click to config host ip address
