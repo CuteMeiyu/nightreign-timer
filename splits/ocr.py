@@ -33,7 +33,7 @@ TARGETS = [
     },
 ]
 MONITOR = 1  # Monitor index, starting with 1. https://python-mss.readthedocs.io/api.html#mss.tools.mss.base.MSSBase.monitors
-INTERVAL = 0.6  # Interval between twice detection
+INTERVAL = 0.8  # Interval between twice detection
 
 
 async def start():
