@@ -26,7 +26,7 @@ TARGETS = [
     },
     {
         "rect": (0.7063, 0.0546, 0.7599, 0.0815),
-        "texts": ["正在准备"],
+        "texts": ["正在匹配"],
         "threshold": 70,
         "action": "reset",
         "cooldown": 10,
