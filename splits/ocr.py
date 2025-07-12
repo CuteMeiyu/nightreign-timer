@@ -24,6 +24,13 @@ TARGETS = [
         "action": "reset",
         "cooldown": 10,
     },
+    {
+        "rect": (0.7063, 0.0546, 0.7599, 0.0815),
+        "texts": ["正在准备"],
+        "threshold": 70,
+        "action": "reset",
+        "cooldown": 10,
+    },
 ]
 MONITOR = 1  # Monitor index, starting with 1. https://python-mss.readthedocs.io/api.html#mss.tools.mss.base.MSSBase.monitors
 INTERVAL = 0.6  # Interval between twice detection
@@ -39,9 +46,8 @@ async def start():
     reader = easyocr.Reader(["ch_sim", "en"])
 
     def get_screen_size():
-        screenshot = sct.grab(sct.monitors[MONITOR])
         # return 1920, 1080
-        return screenshot.width, screenshot.height
+        return sct.monitors[MONITOR]["width"], sct.monitors[MONITOR]["height"]
 
     def grab(bbox):
         # return np.array(Image.open("screenshot.png"))[bbox[1] : bbox[3], bbox[0] : bbox[2]]
