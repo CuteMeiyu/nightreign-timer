@@ -349,13 +349,7 @@
 
             split() {
                 this.saveState();
-
                 this.next();
-                if (this.phase >= this.phase_durations.length) {
-                    this.reset();
-                    return;
-                }
-
                 this.do_auto_split = this.phase_durations.map(d => d > 0);
 
                 const now = performance.now() / 1000;
@@ -468,7 +462,6 @@
             if (ws) {
                 ws.close();
             }
-            connectWebSocket();
 
             showNotification("Saved", 1500);
             hideConfigPopup();

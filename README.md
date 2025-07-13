@@ -21,9 +21,10 @@
 - Detect "DAY I"/"DAY II" on center of screen
 - Additionally detect great enemy tip on day 2, as a backup when map opened (Chinese only)
 - Custom config in splits/ocr.py
+- Only tests on 16:9 aspect ratio
 - Can be disabled by commenting out `splits.ocr.start()` in the main.py
 
-## Remote
+## Remote Display
 
 - Open index.html
 - Right click to config host ip address

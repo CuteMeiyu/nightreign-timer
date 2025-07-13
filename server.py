@@ -31,7 +31,7 @@ async def create_dummy():
 
 async def start():
     global _server
-    async with websockets.serve(handler, "localhost", 22708) as server:
+    async with websockets.serve(handler, "0.0.0.0", 22708) as server:
         _server = server
         print("server ready")
         await asyncio.gather(server.serve_forever(), create_dummy())
